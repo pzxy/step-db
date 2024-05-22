@@ -1,11 +1,13 @@
+use std::arch::aarch64::uint8x8_t;
+
 const MAX_VAR_INT_LEN64: usize = 10;
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Value {
-    meta: u8,
-    v: Vec<u8>,
-    expires_at: u64,
-    version: u64,
+    pub meta: u8,
+    pub v: Vec<u8>,
+    pub expires_at: u64,
+    pub version: u64,
 }
 
 pub fn new_value() -> Value {
@@ -34,8 +36,10 @@ impl Value {
     pub fn encode_value(&self, b: &mut [u8]) -> u32 {
         b[0] = self.meta;
         let sz = encode_uvarint(&mut b[1..], self.expires_at);
-        b[1 + sz as usize..].copy_from_slice(&self.v);
-        return b.len() as u32;
+        let start = 1 + sz as usize;
+        let end = start + self.v.len();
+        b[start..end].copy_from_slice(&self.v);
+        return end as u32;
     }
 }
 
@@ -99,3 +103,26 @@ mod tests {
         assert_eq!(v.v, vv.v);
     }
 }
+
+#[derive(Default)]
+pub struct Entry {
+    pub key: Vec<u8>,
+    pub value: Vec<u8>,
+    pub expires_at: u64,
+    pub meta: u8,
+    pub version: u64,
+    pub offset: u32,
+    pub header_len: isize,
+    pub val_threshold: i64,
+}
+
+
+pub fn new_entry(key: &[u8], value: &[u8]) -> Entry {
+    Entry {
+        key: Vec::from(key),
+        value: Vec::from(value),
+        ..Default::default()
+    }
+}
+
+impl Entry {}
