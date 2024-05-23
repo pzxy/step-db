@@ -8,7 +8,7 @@ use crate::cache::entry::{Entry, Value};
 use crate::cache::utils::compare_keys;
 
 pub const MAX_HEIGHT: usize = 20;
-
+#[repr(C)]
 #[derive(Debug, Default)]
 pub struct Node {
     value: AtomicU64,
@@ -42,7 +42,8 @@ fn new_node<'a>(area: &'a Area, key: Vec<u8>, v: &'a Value, height: usize) -> Rc
         n.key_size = key.len() as u16;
         n.height = height as u16;
         n.value = AtomicU64::from(val);
-        println!("new_node :{:?}", n);
+        let x = &area.get_buf()[8..104];
+        println!("new_node :{:?}", x.to_vec());
     }
     node
 }
@@ -354,14 +355,14 @@ mod tests {
     #[test]
     fn test_skip_list() {
         let mut list = new_skip_list(10000);
-        let k1 = "1234567891";
+        let k1 = gen_key(10);
         let v1 = "111111";
         let entry1 = new_entry(k1.as_bytes(), v1.as_bytes());
         list.add(entry1);
         let value = list.search(k1.as_bytes());
         assert_eq!(*v1.as_bytes(), value.v);
 
-        let k2 = "1234567892";
+        let k2 = gen_key(10);
         let v2 = "222222";
         let entry2 = new_entry(k2.as_bytes(), v2.as_bytes());
         list.add(entry2);
@@ -369,7 +370,7 @@ mod tests {
 
         assert_eq!(*v1.as_bytes(), value.v);
 
-        let v = list.search(gen_key(10).as_bytes());
+        list.search(gen_key(10).as_bytes());
         println!("{:?}", list.area.get_buf());
     }
 }

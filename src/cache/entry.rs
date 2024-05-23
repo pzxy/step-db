@@ -34,11 +34,14 @@ impl Value {
 }
 
 fn size_varint(x: u64) -> usize {
-    let mut n = 1;
+    let mut n = 0;
     let mut y = x;
-    while y != 0 {
+    loop {
         n += 1;
         y >>= 7;
+        if y == 0 {
+            break;
+        }
     }
     n
 }
