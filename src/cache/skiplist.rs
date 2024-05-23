@@ -1,11 +1,10 @@
-use std::cell::RefCell;
-use std::ops::{Deref, DerefMut};
+use std::ops::{Deref};
 use std::rc::Rc;
 use std::sync::atomic::{AtomicI32, AtomicU32, AtomicU64};
-use std::sync::atomic::Ordering::Relaxed;
+use std::sync::atomic::Ordering::{Acquire, Relaxed, SeqCst};
+use rand::{random};
 use crate::cache::area::{Area};
 use crate::cache::entry::{Entry, Value};
-use crate::cache::skiplist;
 use crate::cache::utils::compare_keys;
 
 pub const MAX_HEIGHT: usize = 20;
@@ -16,7 +15,7 @@ pub struct Node {
     key_offset: u32,
     key_size: u16,
     height: u16,
-    tower: [AtomicU32; MAX_HEIGHT],
+    pub(crate) tower: [AtomicU32; MAX_HEIGHT],
 }
 
 impl Node {
@@ -24,22 +23,26 @@ impl Node {
         self.tower[h as usize].load(Relaxed)
     }
     pub fn get_value_offset(&self) -> (u32, u32) {
-        let i = self.value.load(Relaxed);
-        return skiplist::decode_value(i);
+        let i = self.value.load(SeqCst);
+        return decode_value(i);
+    }
+    pub fn set_value(&self, vo: u64) {
+        self.value.store(vo, SeqCst);
     }
 }
 
-fn new_node(area: &mut Area, key: Vec<u8>, v: Value, height: usize) -> Rc<&mut Node> {
+fn new_node<'a>(area: &'a Area, key: Vec<u8>, v: &'a Value, height: usize) -> Rc<&'a mut Node> {
     let node_offset = area.put_node(height);
     let key_offset = area.put_key(key.clone());
-    let val = crate::cache::skiplist::encode_value(area.put_value(&v), v.encoded_size() as u32);
+    let val = encode_value(area.put_value(&v), v.encoded_size() as u32);
     let mut node = area.get_node_mut(node_offset).unwrap();
     {
         let n = Rc::get_mut(&mut node).unwrap();
         n.key_offset = key_offset;
         n.key_size = key.len() as u16;
         n.height = height as u16;
-        n.value = AtomicU64::from(val as u64);
+        n.value = AtomicU64::from(val);
+        println!("new_node :{:?}", n);
     }
     node
 }
@@ -48,23 +51,23 @@ fn new_node(area: &mut Area, key: Vec<u8>, v: Value, height: usize) -> Rc<&mut N
 pub struct SkipList {
     height: AtomicI32,
     head_offset: u32,
-    area: Area,
+    area: Rc::<Area>,
 }
 
 fn new_skip_list(area_size: u32) -> Box<SkipList> {
-    let mut area = Area::new(area_size);
-    let mut head = Rc::new(&mut Node::default());
-    {
-        head = new_node(&mut area, vec![], Value::default(), MAX_HEIGHT);
-    }
-    let area_ref: &Area = &area;
-    let head_offset = area_ref.get_node_offset(Rc::clone(&head).as_ref());
-    let s = Box::new(SkipList {
+    let mut ret = Box::new(SkipList {
         height: AtomicI32::new(1),
-        head_offset,
-        area,
+        area: Rc::new(Area::new(area_size)),
+        head_offset: 0,
     });
-    return s;
+    {
+        // let area_tmp = Rc::clone(&ret.area);
+        let v = Value::default();
+        let head = new_node(ret.area.deref(), vec![], &v, MAX_HEIGHT);
+
+        ret.head_offset = ret.area.deref().get_node_offset(Rc::clone(&head).as_ref());
+    }
+    return ret;
 }
 
 impl SkipList {
@@ -76,19 +79,67 @@ impl SkipList {
             expires_at: e.expires_at,
             version: e.version,
         };
-        let list_height = self.height.load(Relaxed);
+        let list_height = self.height.load(SeqCst);
         let mut prev = [0u32; MAX_HEIGHT + 1];
         let mut next = [0u32; MAX_HEIGHT + 1];
         prev[list_height as usize] = self.head_offset;
+        let area_tmp = Rc::clone(&self.area);
         for i in (0..list_height).rev() {
             // Use higher level to speed up for current level.
             (prev[i as usize], next[i as usize]) = self.find_splice_for_level(&key, prev[(i + 1) as usize], i);
             if prev[i as usize] == next[i as usize] {
-                let vo = self.area.put_value(&v);
+                let vo = area_tmp.put_value(&v);
                 let enc_value = encode_value(vo, v.encoded_size() as u32);
-                let prev_node = self.area.get_node_mut(prev[i as usize]).unwrap();
-                prev_node.value.store(enc_value, Relaxed);
+                let prev_node = area_tmp.get_node_mut(prev[i as usize]).unwrap();
+                prev_node.set_value(enc_value);
                 return;
+            }
+        }
+        let height = random_height();
+        let mut x = new_node(area_tmp.as_ref(), key.clone(), &v, height);
+
+        let mut list_height = self.get_height();
+        while height > list_height as usize {
+            if self.height.compare_exchange(list_height, height as i32, Acquire, SeqCst).is_ok() {
+                // Successfully increased skiplist.height.
+                break;
+            }
+            list_height = self.get_height();
+        }
+        for i in 0..height {
+            loop {
+                if area_tmp.get_node(prev[i]).is_none() {
+                    assert!(i > 1); // This cannot happen in base level.
+                    // We haven't computed prev, next for this level because height exceeds old listHeight.
+                    // For these levels, we expect the lists to be sparse, so we can just search from head.
+                    (prev[i], next[i]) = self.find_splice_for_level(&key, self.head_offset, i as i32);
+                    // Someone adds the exact same key before we are able to do so. This can only happen on
+                    // the base level. But we know we are not on the base level.
+                    assert_ne!(prev[i], next[i]);
+                }
+                {
+                    let x_m = Rc::get_mut(&mut x).unwrap();
+                    x_m.tower[i] = AtomicU32::from(next[i]);
+                }
+                if let Some(pnode) = area_tmp.get_node(prev[i]) {
+                    if pnode.tower[i].compare_exchange(next[i], area_tmp.get_node_offset(&x), Acquire, SeqCst).is_ok() {
+                        // Managed to insert x between prev[i] and next[i]. Go to the next level.
+                        break;
+                    }
+                }
+                // CAS failed. We need to recompute prev and next.
+                // It is unlikely to be helpful to try to use a different level as we redo the search,
+                // because it is unlikely that lots of nodes are inserted between prev[i] and next[i].
+                (prev[i], next[i]) = self.find_splice_for_level(&key, prev[i], i as i32);
+                if prev[i] == next[i] {
+                    assert_eq!(i, 0);
+                    let vo = area_tmp.put_value(&v);
+                    let enc_value = encode_value(vo, v.encoded_size() as u32);
+                    if let Some(prev_node) = area_tmp.get_node(prev[i]) {
+                        prev_node.set_value(enc_value);
+                    }
+                    return;
+                }
             }
         }
     }
@@ -96,24 +147,21 @@ impl SkipList {
     // The input "before" tells us where to start looking.
     // If we found a node with the same key, then we return outBefore = outAfter.
     // Otherwise, outBefore.key < key < outAfter.key.
-    fn find_splice_for_level(&mut self, key: &[u8], before: u32, level: i32) -> (u32, u32) {
+    fn find_splice_for_level(&self, key: &[u8], before: u32, level: i32) -> (u32, u32) {
+        let area_tmp = Rc::clone(&self.area);
+        let mut before = before;
         loop {
-            let mut before = before;
             // Assume before.key < key.
-            let before_node = self.area.get_node(before).unwrap();
-            let next = before_node.get_next_offset(level);
+            let next = area_tmp.get_node(before).unwrap().get_next_offset(level);
 
-            let (mut key_offset, mut key_size) = (0, 0);
-            {
-                let next_node = self.area.get_node(next);
-                if next_node.is_none() {
-                    return (before, next);
-                }
-                let next_node = next_node.unwrap();
-                key_offset = next_node.key_offset;
-                key_size = next_node.key_size;
+            let next_node = area_tmp.get_node(next);
+            if next_node.is_none() {
+                return (before, next);
             }
-            let next_key = self.area.get_key(key_offset, key_size);
+            let next_node = next_node.unwrap();
+            let key_offset = next_node.key_offset;
+            let key_size = next_node.key_size;
+            let next_key = area_tmp.get_key(key_offset, key_size);
             let cmp = compare_keys(key, &next_key);
             if cmp == 0 {
                 // Equality case.
@@ -133,10 +181,10 @@ impl SkipList {
     pub fn find_near(&self, key: &[u8], less: bool, allow_equal: bool) -> (Option<Rc<&Node>>, bool) {
         let mut x = self.get_head().unwrap();
         let mut level = (self.get_height() - 1) as i32;
-
+        let area_tmp = Rc::clone(&self.area);
         loop {
             // Assume x.key < key.
-            let next = self.get_next(Rc::clone(&x).as_ref(), level);
+            let next = self.get_next(x.deref(), level);
             if next.is_none() {
                 // x.key < key < END OF LIST
                 if level > 0 {
@@ -155,7 +203,8 @@ impl SkipList {
                 return (Some(x), false);
             }
             let next = next.unwrap();
-            let next_key = self.area.get_key(next.key_offset, next.key_size);
+            println!("next node:{:?}", next);
+            let next_key = area_tmp.get_key(next.key_offset, next.key_size);
             let cmp = compare_keys(key, &next_key);
             if cmp > 0 {
                 // x.key < next.key < key. We can continue to move right.
@@ -200,25 +249,28 @@ impl SkipList {
     }
 
     pub fn search(&self, key: &[u8]) -> Value {
+        let area_tmp = Rc::clone(&self.area);
         let (n, _) = self.find_near(key, false, true); // findGreaterOrEqual.
         if n.is_none() {
             return Value::default();
         }
         let n = n.unwrap();
-        let next_key = self.area.get_key(n.key_offset, n.key_size);
+        let next_key = area_tmp.get_key(n.key_offset, n.key_size);
         if !same_key(key, &next_key) {
             return Value::default();
         }
 
         let (val_offset, val_size) = n.get_value_offset();
-        let vs = self.area.get_value(val_offset, val_size);
+        let vs = area_tmp.get_value(val_offset, val_size);
         vs
     }
 }
 
 impl SkipList {
     pub fn get_next(&self, nd: &Node, height: i32) -> Option<Rc<&Node>> {
-        self.area.get_node(nd.get_next_offset(height))
+        let offset = nd.get_next_offset(height);
+        println!("next offset:{},height:{}", offset, height);
+        self.area.get_node(offset)
     }
 
     pub fn get_head(&self) -> Option<Rc<&Node>> {
@@ -226,7 +278,7 @@ impl SkipList {
     }
 
     pub fn get_height(&self) -> i32 {
-        self.height.load(Relaxed)
+        self.height.load(SeqCst)
     }
 }
 
@@ -275,37 +327,49 @@ fn key_with_ts(key: &[u8], ts: u64) -> Vec<u8> {
     out
 }
 
+fn random_height() -> usize {
+    let mut h = 1;
+    while h < MAX_HEIGHT && random::<u32>() <= u32::MAX / 3 {
+        h += 1;
+    }
+    h
+}
+
 #[cfg(test)]
 mod tests {
-    use crate::cache::area::Area;
-    use crate::cache::entry::{new_entry, Value};
+    use rand::Rng;
+    use crate::cache::entry::{new_entry};
     use crate::cache::skiplist::new_skip_list;
 
-    #[test]
-    fn test_node() {
-        let height = 20;
-        let key1 = "key1".to_string();
-        let value1 = "value1".to_string();
-        let v = Value::default();
-        let mut area = Area::new(1000);
-        let node_offset = area.put_node(height);
-        let key_offset = area.put_key(key1.into_bytes().clone());
-        // area.put_value()
-        let value_offset = area.put_value(&v);
-        // let v =  v.encoded_size();
-
-        let mut node = area.get_node(node_offset).unwrap();
-        assert_eq!(node.tower.len(), height);
+    fn gen_key(len: usize) -> String {
+        let mut rng = rand::thread_rng();
+        let mut bytes = vec![0; len];
+        for i in 0..len {
+            let b = rng.gen_range(97..123) as u8;
+            bytes[i] = b;
+        }
+        String::from_utf8(bytes).unwrap()
     }
 
     #[test]
     fn test_skip_list() {
-        let mut list = new_skip_list(1000);
-        let k1 = "key1";
-        let v1 = "value1";
+        let mut list = new_skip_list(10000);
+        let k1 = "1234567891";
+        let v1 = "111111";
         let entry1 = new_entry(k1.as_bytes(), v1.as_bytes());
         list.add(entry1);
         let value = list.search(k1.as_bytes());
-        assert_eq!(*k1.as_bytes(), value.v)
+        assert_eq!(*v1.as_bytes(), value.v);
+
+        let k2 = "1234567892";
+        let v2 = "222222";
+        let entry2 = new_entry(k2.as_bytes(), v2.as_bytes());
+        list.add(entry2);
+        let value = list.search(k1.as_bytes());
+
+        assert_eq!(*v1.as_bytes(), value.v);
+
+        let v = list.search(gen_key(10).as_bytes());
+        println!("{:?}", list.area.get_buf());
     }
 }

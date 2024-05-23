@@ -1,5 +1,3 @@
-
-
 // CompareKeys checks the key without timestamp and checks the timestamp if keyNoTs
 // is same.
 // a<timestamp> would be sorted higher than aa<timestamp> if we use bytes.compare

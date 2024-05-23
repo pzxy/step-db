@@ -1,5 +1,3 @@
-use std::arch::aarch64::uint8x8_t;
-
 const MAX_VAR_INT_LEN64: usize = 10;
 
 #[derive(Debug, Default)]
@@ -10,19 +8,11 @@ pub struct Value {
     pub version: u64,
 }
 
-pub fn new_value() -> Value {
-    Value {
-        meta: 0,
-        v: vec![],
-        expires_at: 0,
-        version: 0,
-    }
-}
-
 impl Value {
     pub fn encoded_size(&self) -> usize {
         let sz = self.v.len() + 1; // meta
         let enc = size_varint(self.expires_at);
+        // println!("encode_size:{},{}", sz, enc);
         sz + enc
     }
 
@@ -44,11 +34,11 @@ impl Value {
 }
 
 fn size_varint(x: u64) -> usize {
-    let mut n = 0;
-    let mut value = x;
-    while value > 0 {
+    let mut n = 1;
+    let mut y = x;
+    while y != 0 {
         n += 1;
-        value >>= 7;
+        y >>= 7;
     }
     n
 }
@@ -95,11 +85,11 @@ mod tests {
 
     #[test]
     fn test_value() {
-        let v = Value { meta: 2, v: "我为祖国献石油".to_string().into_bytes(), expires_at: 123456, version: 1 };
-        let mut data = vec![0u8; v.encoded_size()];
-        let sz = v.encode_value(&mut data);
+        let v = Value { meta: 2, v: "1".to_string().into_bytes(), expires_at: 123456, version: 1 };
+        let mut data = vec![0; 100];
+        let end = v.encode_value(&mut data) as usize;
         let mut vv = Value { meta: 2, v: vec![], expires_at: 123456, version: 1 };
-        let x = vv.decode_value(&mut data);
+        vv.decode_value(&data[0..end]);
         assert_eq!(v.v, vv.v);
     }
 }
