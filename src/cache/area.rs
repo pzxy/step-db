@@ -2,7 +2,7 @@ use std::cell::{RefCell};
 use std::mem;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicU32};
-use std::sync::atomic::Ordering::{SeqCst};
+use std::sync::atomic::Ordering::{Relaxed};
 use crate::cache::entry::Value;
 use crate::cache::skiplist::{MAX_HEIGHT, Node};
 
@@ -33,7 +33,7 @@ impl Area {
     }
 
     fn allocate(&self, sz: u32) -> u32 {
-        let offset = self.n.fetch_add(sz, SeqCst);
+        let offset = self.n.fetch_add(sz, Relaxed);
         if !self.is_grow {
             assert!((offset + sz) <= self.get_buf().len() as u32);
             return offset;
@@ -42,7 +42,7 @@ impl Area {
         return offset;
     }
     fn size(&self) -> i64 {
-        return self.n.load(SeqCst) as i64;
+        return self.n.load(Relaxed) as i64;
     }
 
     pub(crate) fn put_node(&self, height: usize) -> u32 {

@@ -1,20 +1,23 @@
 use std::ops::{Deref};
 use std::rc::Rc;
 use std::sync::atomic::{AtomicI32, AtomicU32, AtomicU64};
-use std::sync::atomic::Ordering::{Acquire, Relaxed, SeqCst};
+use std::sync::atomic::Ordering::{Acquire, Relaxed};
 use rand::{random};
 use crate::cache::area::{Area};
 use crate::cache::entry::{Entry, Value};
+use crate::cache::iterator;
+use crate::cache::iterator::SkipListIter;
 use crate::cache::utils::compare_keys;
 
 pub const MAX_HEIGHT: usize = 20;
+
 #[repr(C)]
 #[derive(Debug, Default)]
 pub struct Node {
-    value: AtomicU64,
-    key_offset: u32,
-    key_size: u16,
-    height: u16,
+    pub value: AtomicU64,
+    pub key_offset: u32,
+    pub key_size: u16,
+    pub height: u16,
     pub(crate) tower: [AtomicU32; MAX_HEIGHT],
 }
 
@@ -23,11 +26,11 @@ impl Node {
         self.tower[h as usize].load(Relaxed)
     }
     pub fn get_value_offset(&self) -> (u32, u32) {
-        let i = self.value.load(SeqCst);
+        let i = self.value.load(Relaxed);
         return decode_value(i);
     }
     pub fn set_value(&self, vo: u64) {
-        self.value.store(vo, SeqCst);
+        self.value.store(vo, Relaxed);
     }
 }
 
@@ -50,9 +53,9 @@ fn new_node<'a>(area: &'a Area, key: Vec<u8>, v: &'a Value, height: usize) -> Rc
 
 
 pub struct SkipList {
-    height: AtomicI32,
-    head_offset: u32,
-    area: Rc::<Area>,
+    pub height: AtomicI32,
+    pub head_offset: u32,
+    pub area: Rc::<Area>,
 }
 
 fn new_skip_list(area_size: u32) -> Box<SkipList> {
@@ -80,11 +83,12 @@ impl SkipList {
             expires_at: e.expires_at,
             version: e.version,
         };
-        let list_height = self.height.load(SeqCst);
+        let list_height = self.height.load(Relaxed);
         let mut prev = [0u32; MAX_HEIGHT + 1];
         let mut next = [0u32; MAX_HEIGHT + 1];
         prev[list_height as usize] = self.head_offset;
         let area_tmp = Rc::clone(&self.area);
+
         for i in (0..list_height).rev() {
             // Use higher level to speed up for current level.
             (prev[i as usize], next[i as usize]) = self.find_splice_for_level(&key, prev[(i + 1) as usize], i);
@@ -101,7 +105,7 @@ impl SkipList {
 
         let mut list_height = self.get_height();
         while height > list_height as usize {
-            if self.height.compare_exchange(list_height, height as i32, Acquire, SeqCst).is_ok() {
+            if self.height.compare_exchange(list_height, height as i32, Acquire, Relaxed).is_ok() {
                 // Successfully increased skiplist.height.
                 break;
             }
@@ -123,7 +127,7 @@ impl SkipList {
                     x_m.tower[i] = AtomicU32::from(next[i]);
                 }
                 if let Some(pnode) = area_tmp.get_node(prev[i]) {
-                    if pnode.tower[i].compare_exchange(next[i], area_tmp.get_node_offset(&x), Acquire, SeqCst).is_ok() {
+                    if pnode.tower[i].compare_exchange(next[i], area_tmp.get_node_offset(&x), Acquire, Relaxed).is_ok() {
                         // Managed to insert x between prev[i] and next[i]. Go to the next level.
                         break;
                     }
@@ -279,7 +283,15 @@ impl SkipList {
     }
 
     pub fn get_height(&self) -> i32 {
-        self.height.load(SeqCst)
+        self.height.load(Relaxed)
+    }
+
+    pub fn get_value(&self, n: &Node) -> Value {
+        let (val_offset, val_size) = n.get_value_offset();
+        return self.area.get_value(val_offset, val_size);
+    }
+    pub fn iter(&self) -> SkipListIter {
+        return iterator::new(self);
     }
 }
 
@@ -338,6 +350,7 @@ fn random_height() -> usize {
 
 #[cfg(test)]
 mod tests {
+    use std::str::from_utf8;
     use rand::Rng;
     use crate::cache::entry::{new_entry};
     use crate::cache::skiplist::new_skip_list;
@@ -372,5 +385,33 @@ mod tests {
 
         list.search(gen_key(10).as_bytes());
         println!("{:?}", list.area.get_buf());
+    }
+
+    #[test]
+    fn test_iterator() {
+        let mut list = new_skip_list(10000);
+        let k1 = gen_key(10);
+        let v1 = "111111";
+        let entry1 = new_entry(k1.as_bytes(), v1.as_bytes());
+        list.add(entry1);
+
+        let k2 = gen_key(10);
+        let v2 = "222222";
+        let entry1 = new_entry(k1.as_bytes(), v1.as_bytes());
+        list.add(entry1);
+
+        let k3 = gen_key(10);
+        let v3 = "333333";
+        let entry1 = new_entry(k1.as_bytes(), v1.as_bytes());
+        list.add(entry1);
+
+        for (i, e) in list.iter().enumerate() {
+            match i {
+                1 => assert_eq!(k1, String::from_utf8(e.key).unwrap()),
+                2 => assert_eq!(k2, String::from_utf8(e.key).unwrap()),
+                3 => assert_eq!(v3, String::from_utf8(e.value).unwrap()),
+                x => assert_eq!(x, 0)
+            }
+        }
     }
 }
