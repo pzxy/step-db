@@ -1,5 +1,3 @@
-use std::cmp::PartialEq;
-use std::ops::Deref;
 use std::rc::Rc;
 use crate::cache::entry::Entry;
 use crate::cache::skiplist::{Node, SkipList};
