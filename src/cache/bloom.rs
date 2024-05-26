@@ -42,7 +42,45 @@ pub fn init_filter(num_entries: isize, false_positive: f64) -> BloomFilter {
 
 
 impl BloomFilter {
-    // fn insert(&self, h: u32) -> bool {}
+    fn insert(&mut self, h: u32) -> bool {
+        if self.k > 30 { return true; }
+        let bits = 8 * (self.bitmap.len() - 1) as u32;
+        let delta = (h >> 17) | (h << 15);
+        let mut h = h;
+        for _ in 0..self.k {
+            let bit_pos = h % bits;
+            self.bitmap[(bit_pos / 8) as usize] |= 1u32.wrapping_shl(bit_pos % 8) as u8;
+            h = h.wrapping_add(delta)
+        }
+        true
+    }
+    fn may_exist_key(&self, k: &[u8]) -> bool {
+        return self.may_exist(hash(k));
+    }
+
+    fn may_exist(&self, h: u32) -> bool {
+        if self.bitmap.len() < 2 { return false; }
+        let bits = 8 * (self.bitmap.len() - 1) as u32;
+        let delta = (h >> 17) | (h << 15);
+        let mut h = h;
+        for _ in 0..self.k {
+            let bit_pos = h % bits;
+            // println!("bit_pos:{}", bit_pos);
+            if self.bitmap[(bit_pos / 8) as usize] as u32 & (1u32.wrapping_shl(bit_pos % 8)) == 0 { return false; }
+            h = h.wrapping_add(delta)
+        }
+        return true;
+    }
+    fn allow_key(&mut self, k: &[u8]) -> bool {
+        return self.allow(hash(k));
+    }
+    fn allow(&mut self, h: u32) -> bool {
+        let already = self.may_exist(h);
+        if !already {
+            return self.insert(h);
+        }
+        return already;
+    }
 }
 
 fn hash(bytes: &[u8]) -> u32 {
@@ -51,11 +89,22 @@ fn hash(bytes: &[u8]) -> u32 {
 
 #[cfg(test)]
 mod tests {
-    use crate::cache::bloom::{bloom_bits, init_filter, new};
+    use crate::cache::bloom::{new};
 
     #[test]
-    fn test_hash() {
-        let bf = new(1000, 0.01);
-        println!("a {:?},k:{}", bf.bitmap.len(), bf.k)
+    fn test_bloom() {
+        let mut bf = new(1000, 0.01);
+        let k1 = "大西洋海底来的人".as_bytes();
+        let k2 = "加里森敢死队".as_bytes();
+        let k3 = "狗安偷生".as_bytes();
+        bf.allow_key(k1);
+        bf.allow_key(k2);
+
+        let exist1 = bf.may_exist_key(k1);
+        let exist2 = bf.may_exist_key(k2);
+        let exist3 = bf.may_exist_key(k3);
+        assert_eq!(exist1, true);
+        assert_eq!(exist2, true);
+        assert_eq!(exist3, false);
     }
 }
