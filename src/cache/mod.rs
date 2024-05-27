@@ -4,3 +4,4 @@ mod entry;
 mod utils;
 mod iterator;
 mod bloom;
+mod counter;
