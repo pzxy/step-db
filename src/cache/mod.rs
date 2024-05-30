@@ -5,3 +5,5 @@ mod utils;
 mod iterator;
 mod bloom;
 mod counter;
+mod cache;
+mod lru;

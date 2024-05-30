@@ -1,5 +1,5 @@
 use std::cmp::{max, min};
-use std::f64::consts::{LN_2, PI};
+use std::f64::consts::{LN_2};
 
 #[derive(Debug)]
 pub struct BloomFilter {
