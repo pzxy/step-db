@@ -2,6 +2,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::marker::PhantomData;
+use std::ops::Deref;
 use std::rc::Rc;
 use std::sync::RwLock;
 use crate::cache::bloom::BloomFilter;
@@ -9,7 +10,7 @@ use crate::cache::{bloom, counter};
 use crate::cache::counter::CMSketch;
 use crate::cache::lru::{Map, new_lru, new_slru, SegmentedLRU, StoreItem, WindowLRU};
 
-pub struct Cache<K, V> {
+pub struct Cache<K:?Sized, V> {
     m: RwLock<u8>,
     lru: WindowLRU<V>,
     slru: SegmentedLRU<V>,
@@ -23,37 +24,37 @@ pub struct Cache<K, V> {
 
 
 // size is the number of data to be cached
-pub fn new<K, V>(size: usize) -> Cache<K, V>
-{
-    // LRU window size，1% of Total
-    let lru_pct = 0.01;
-    let lru_sz = ((lru_pct * size as f64) as usize).max(1);
-    // SLRU size,99% of Total
-    let slru_sz = ((size as f64 * (1.0 - lru_pct)) as usize).max(1);
 
-    // SLRU stage one size,20% of SLRU
-    let slru_one = ((0.2 * slru_sz as f64) as usize).max(1);
-    // SLRU stage one size,80% of SLRU
-    let slru_two = slru_sz - slru_one;
-    let data = Rc::new(RefCell::new(HashMap::with_capacity(size)));
-    Cache {
-        m: Default::default(),
-        lru: new_lru(lru_sz, Rc::clone(&data)),
-        slru: new_slru(slru_one, slru_two, Rc::clone(&data)),
-        watch_dog: bloom::new(size as isize, 0.01),
-        c: counter::new(size as u64),
-        t: 0,
-        threshold: 0,
-        data,
-        _pd: PhantomData,
+
+impl<K: ?Sized, V> Cache<K, V>
+    where K: Hash + Eq,
+          V: Clone,
+{
+    pub fn new(size: usize) -> Self {
+        // LRU window size，1% of Total
+        let lru_pct = 0.01;
+        let lru_sz = ((lru_pct * size as f64) as usize).max(1);
+        // SLRU size,99% of Total
+        let slru_sz = ((size as f64 * (1.0 - lru_pct)) as usize).max(1);
+
+        // SLRU stage one size,20% of SLRU
+        let slru_one = ((0.2 * slru_sz as f64) as usize).max(1);
+        // SLRU stage one size,80% of SLRU
+        let slru_two = slru_sz - slru_one;
+        let data = Rc::new(RefCell::new(HashMap::with_capacity(size)));
+        Cache {
+            m: Default::default(),
+            lru: new_lru(lru_sz, Rc::clone(&data)),
+            slru: new_slru(slru_one, slru_two, Rc::clone(&data)),
+            watch_dog: bloom::new(size as isize, 0.01),
+            c: counter::new(size as u64),
+            t: 0,
+            threshold: 0,
+            data,
+            _pd: PhantomData,
+        }
     }
-}
-
-
-impl<K, V> Cache<K, V>
-    where K: Hash + Eq
-{
-    fn set(&mut self, key: K, value: V) -> bool {
+    fn set(&mut self, key: &K, value: V) -> bool {
         let _unused = self.m.write().expect("set k-v pairs fail");
 
         // keyHash is used for quick lookup, conflictHash is used to check for conflicts
@@ -108,7 +109,7 @@ impl<K, V> Cache<K, V>
         (h1, h2)
     }
 
-    fn get(&mut self, key: K) -> (Option<V>) {
+    fn get(&mut self, key: &K) -> (Option<V>) {
         let _unused = self.m.write().expect("get k-v pairs fail");
 
         self.t += 1;
@@ -118,28 +119,26 @@ impl<K, V> Cache<K, V>
             self.t = 0;
         }
 
-        let (key_hash, conflict_hash) = self.key_to_hash(key);
+        let (key_hash, conflict_hash) = self.key_to_hash(&key);
 
-        if let Some(val) = self.data.borrow().get(&key_hash) {
-            let item = val.borrow();
+        if let Some(item) = self.data.borrow().get(&key_hash) {
+            let item_ref = item.borrow();
+            if item_ref.conflict != conflict_hash {
+                return None;
+            }
             self.watch_dog.allow(key_hash as u32);
             self.c.increment(key_hash);
 
-            if item.conflict != conflict_hash {
-                return None;
-            }
-
-            let v = item.value.as_ref();
-            if item.stage == 0 {
-                self.lru.get(val);
+            if item_ref.stage == 0 {
+                self.lru.get(item_ref.key);
             } else {
-                self.slru.get(val);
+                self.slru.get(Rc::clone(&item));
             }
-            Some(v)
+            return Some(item_ref.value.clone());
         }
         None
     }
-    pub fn del(&self, key: K) -> Option<u64> {
+    pub fn del(&self, key: &K) -> Option<u64> {
         let _unused = self.m.write().expect("get k-v pairs fail");
         let (key_hash, conflict_hash) = self.key_to_hash(&key);
         if let Some(val) = self.data.borrow().get(&key_hash) {
@@ -156,22 +155,22 @@ impl<K, V> Cache<K, V>
 
 #[cfg(test)]
 mod tests {
-    use crate::cache::cache::{Cache, new};
+    use crate::cache::cache::{Cache};
 
     #[test]
     fn test_key_to_hash() {
         let a = 12314u64;
-        let c = new::<u64, u64>(100);
+        let c = Cache::<u64, u64>::new(100);
         let (h1, h2) = c.key_to_hash(&a);
         // 3962117728473627647,9330451337157661844
         assert_eq!(h1, 3962117728473627647);
         assert_eq!(h2, 9330451337157661844);
 
-        let a = "hello ferris".as_bytes();
-        let c = new::<&[u8], u64>(100);
+        let a = "hello ferris".to_string();
+        let c = Cache::<String, u64>::new(100);
         let (h1, h2) = c.key_to_hash(&a);
-        // 16996523373881883469,14131059956657987763
-        assert_eq!(h1, 16996523373881883469);
-        assert_eq!(h2, 14131059956657987763);
+        // 12643562960511582310,17903442243031495094
+        assert_eq!(h1, 12643562960511582310);
+        assert_eq!(h2, 17903442243031495094);
     }
 }

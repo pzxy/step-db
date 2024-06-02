@@ -49,10 +49,19 @@ impl<T> WindowLRU<T> {
         Some(evict_item)
     }
 
-    pub fn get(&mut self, v: &StoreItem<T>) {
-        if let Some(last) = self.list.pop_back() {
-            self.list.push_front(last)
+    pub fn get(&mut self, key: u64) {
+        if let Some(item) = self.remove_item_in_list(key) {
+            self.list.push_front(item);
         }
+    }
+    fn remove_item_in_list(&mut self, key: u64) -> Option<Item<T>> {
+        if let Some(pos) = self.list.iter().position(|i| i.borrow().key == key) {
+            let mut after = self.list.split_off(pos);
+            let ret = after.pop_front();
+            self.list.append(&mut after);
+            return ret;
+        }
+        None
     }
 }
 
@@ -98,9 +107,9 @@ impl<T> SegmentedLRU<T> {
         self.data.borrow_mut().insert(item.borrow().key, Rc::clone(&item));
     }
 
-    pub fn get(&mut self, mut new_item: StoreItem<T>) {
+    pub fn get(&mut self, new_item: Item<T>) {
         // if item in stage two already
-        if STAGE_TWO == new_item.stage {
+        if STAGE_TWO == new_item.borrow().stage {
             if let Some(v) = self.stage_two.pop_back() {
                 self.stage_two.push_front(v);
             };
@@ -108,15 +117,14 @@ impl<T> SegmentedLRU<T> {
 
         // item in stage one, and stage two is not full yet
         if self.stage_two.len() < self.stage_two_cap {
-            self.remove_item_in_stage_one(new_item.key);
-            new_item.stage = STAGE_TWO;
-            self.stage_two.push_front(Rc::new(RefCell::new(new_item)));
+            self.remove_item_in_stage_one(new_item.borrow().key);
+            new_item.borrow_mut().stage = STAGE_TWO;
+            self.stage_two.push_front(new_item);
         } else {
             // move old data from stage two to stage one
             let old = self.stage_two.pop_back().unwrap();
 
-            new_item.stage = STAGE_TWO;
-            let new_item = Rc::new(RefCell::new(new_item));
+            new_item.borrow_mut().stage = STAGE_TWO;
             self.stage_two.push_front(Rc::clone(&new_item));
             self.data.borrow_mut().insert(new_item.borrow().key, Rc::clone(&new_item));
 
@@ -129,12 +137,14 @@ impl<T> SegmentedLRU<T> {
             self.data.borrow_mut().insert(old.borrow().key, Rc::clone(&old));
         }
     }
-    fn remove_item_in_stage_one(&mut self, key: u64) {
+    fn remove_item_in_stage_one(&mut self, key: u64) -> Option<Item<T>> {
         if let Some(pos) = self.stage_one.iter().position(|i| i.borrow().key == key) {
             let mut after = self.stage_one.split_off(pos);
-            after.pop_front();
-            self.stage_one.append(&mut after)
+            let ret = after.pop_front();
+            self.stage_one.append(&mut after);
+            return ret;
         }
+        None
     }
     fn len(&self) -> usize {
         self.stage_one.len() + self.stage_two.len()
