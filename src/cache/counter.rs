@@ -6,13 +6,13 @@ const CM_DEPTH: usize = 4;
 
 // Count-Min Sketch
 #[derive(Debug)]
-struct CMSketch {
+pub struct CMSketch {
     rows: [CmRow; CM_DEPTH],
     seed: [u64; CM_DEPTH],
     mask: u64,
 }
 
-fn new(num_counters: u64) -> CMSketch {
+pub fn new(num_counters: u64) -> CMSketch {
     if num_counters == 0 {
         panic!("invalid num_counters");
     }
@@ -35,13 +35,13 @@ fn new(num_counters: u64) -> CMSketch {
 }
 
 impl CMSketch {
-    fn increment(&mut self, hashed: u64) {
+    pub fn increment(&mut self, hashed: u64) {
         for (i, row) in self.rows.iter_mut().enumerate() {
             row.increment((hashed ^ self.seed[i]) & self.mask);
         }
     }
 
-    fn estimate(&self, hashed: u64) -> i64 {
+    pub fn estimate(&self, hashed: u64) -> i64 {
         let mut m = 255;
         for (i, row) in self.rows.iter().enumerate() {
             m = min(m, row.get((hashed ^ self.seed[i]) & self.mask))
@@ -49,11 +49,11 @@ impl CMSketch {
         m as i64
     }
 
-    fn reset(&mut self) {
+    pub fn reset(&mut self) {
         let _ = self.rows.iter_mut().map(|x| x.reset());
     }
 
-    fn clear(&mut self) {
+    pub fn clear(&mut self) {
         let _ = self.rows.iter_mut().map(|x| x.clear());
     }
 }
@@ -61,7 +61,7 @@ impl CMSketch {
 use std::fmt;
 
 #[derive(Debug)]
-struct CmRow {
+pub struct CmRow {
     data: Vec<u8>,
 }
 

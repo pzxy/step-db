@@ -74,12 +74,17 @@ impl BloomFilter {
     fn allow_key(&mut self, k: &[u8]) -> bool {
         return self.allow(hash(k));
     }
-    fn allow(&mut self, h: u32) -> bool {
+    pub(crate) fn allow(&mut self, h: u32) -> bool {
         let already = self.may_exist(h);
         if !already {
             return self.insert(h);
         }
         return already;
+    }
+    pub fn reset(&mut self) {
+        for v in self.bitmap.iter_mut() {
+            *v = 0;
+        }
     }
 }
 
