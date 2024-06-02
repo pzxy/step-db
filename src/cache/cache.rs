@@ -3,14 +3,16 @@ use std::collections::HashMap;
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::marker::PhantomData;
 use std::ops::Deref;
+use std::ptr::replace;
 use std::rc::Rc;
 use std::sync::RwLock;
 use crate::cache::bloom::BloomFilter;
 use crate::cache::{bloom, counter};
 use crate::cache::counter::CMSketch;
-use crate::cache::lru::{Map, new_lru, new_slru, SegmentedLRU, StoreItem, WindowLRU};
+use crate::cache::lru::{Item, Map, new_lru, new_slru, SegmentedLRU, StoreItem, WindowLRU};
 
-pub struct Cache<K:?Sized, V> {
+#[derive(Debug)]
+pub struct Cache<K, V> {
     m: RwLock<u8>,
     lru: WindowLRU<V>,
     slru: SegmentedLRU<V>,
@@ -26,7 +28,7 @@ pub struct Cache<K:?Sized, V> {
 // size is the number of data to be cached
 
 
-impl<K: ?Sized, V> Cache<K, V>
+impl<K, V> Cache<K, V>
     where K: Hash + Eq,
           V: Clone,
 {
@@ -54,7 +56,7 @@ impl<K: ?Sized, V> Cache<K, V>
             _pd: PhantomData,
         }
     }
-    fn set(&mut self, key: &K, value: V) -> bool {
+    fn set(&mut self, key: K, value: V) -> bool {
         let _unused = self.m.write().expect("set k-v pairs fail");
 
         // keyHash is used for quick lookup, conflictHash is used to check for conflicts
@@ -121,6 +123,7 @@ impl<K: ?Sized, V> Cache<K, V>
 
         let (key_hash, conflict_hash) = self.key_to_hash(&key);
 
+        let mut item_opt = None;
         if let Some(item) = self.data.borrow().get(&key_hash) {
             let item_ref = item.borrow();
             if item_ref.conflict != conflict_hash {
@@ -132,13 +135,18 @@ impl<K: ?Sized, V> Cache<K, V>
             if item_ref.stage == 0 {
                 self.lru.get(item_ref.key);
             } else {
-                self.slru.get(Rc::clone(&item));
+                item_opt = Some(Rc::clone(&item));
             }
             return Some(item_ref.value.clone());
         }
+        if let Some(item) = item_opt {
+            let v = item.borrow().value.clone();
+            self.slru.get(item);
+            return Some(v);
+        }
         None
     }
-    pub fn del(&self, key: &K) -> Option<u64> {
+    pub fn del(&self, key: K) -> Option<u64> {
         let _unused = self.m.write().expect("get k-v pairs fail");
         let (key_hash, conflict_hash) = self.key_to_hash(&key);
         if let Some(val) = self.data.borrow().get(&key_hash) {
@@ -172,5 +180,29 @@ mod tests {
         // 12643562960511582310,17903442243031495094
         assert_eq!(h1, 12643562960511582310);
         assert_eq!(h2, 17903442243031495094);
+    }
+
+    #[test]
+    fn test_cache_basic_crud() {
+        let mut cache = Cache::<String, String>::new(5);
+
+        for i in 0..10 {
+            let key = format!("key{}", i);
+            let val = format!("val{}", i);
+            println!("set {}: {:?}", &key, cache);
+            cache.set(key, val);
+        }
+
+        for i in 0..1000 {
+            let key = format!("key{}", i);
+            let val = format!("val{}", i);
+            if let Some(res) = cache.get(&key) {
+                println!("get {}: {:?}", &key, cache);
+                assert_eq!(val, *res);
+                continue;
+            }
+            assert_eq!(None, cache.get(&key));
+        }
+        println!("at last: {:?}", cache);
     }
 }

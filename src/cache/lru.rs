@@ -7,13 +7,14 @@ use std::rc::Rc;
 pub type Item<T> = Rc<RefCell<StoreItem<T>>>;
 pub type Map<T> = Rc<RefCell<HashMap<u64, Item<T>>>>;
 
+#[derive(Debug)]
 pub struct WindowLRU<T> {
     data: Map<T>,
     cap: usize,
     list: LinkedList<Item<T>>,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone,Debug)]
 pub struct StoreItem<T> {
     pub stage: u8,
     pub key: u64,
@@ -65,7 +66,7 @@ impl<T> WindowLRU<T> {
     }
 }
 
-
+#[derive(Debug)]
 pub struct SegmentedLRU<T> {
     data: Map<T>,
     stage_one_cap: usize,
@@ -108,18 +109,18 @@ impl<T> SegmentedLRU<T> {
     }
 
     pub fn get(&mut self, new_item: Item<T>) {
-        // if item in stage two already
         if STAGE_TWO == new_item.borrow().stage {
             if let Some(v) = self.stage_two.pop_back() {
                 self.stage_two.push_front(v);
             };
         }
-
         // item in stage one, and stage two is not full yet
         if self.stage_two.len() < self.stage_two_cap {
-            self.remove_item_in_stage_one(new_item.borrow().key);
-            new_item.borrow_mut().stage = STAGE_TWO;
-            self.stage_two.push_front(new_item);
+            {
+                self.remove_item_in_stage_one(new_item.borrow().key);
+                new_item.borrow_mut().stage = STAGE_TWO;
+            }
+            self.stage_two.push_front(Rc::clone(&new_item));
         } else {
             // move old data from stage two to stage one
             let old = self.stage_two.pop_back().unwrap();
