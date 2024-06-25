@@ -1,6 +1,6 @@
+use rand::RngCore;
 use std::array::from_fn;
 use std::cmp::min;
-use rand::{RngCore};
 
 const CM_DEPTH: usize = 4;
 
@@ -67,7 +67,7 @@ pub struct CmRow {
 
 pub fn new_row(num_counters: u64) -> CmRow {
     CmRow {
-        data: vec![0; (num_counters / 2) as usize]
+        data: vec![0; (num_counters / 2) as usize],
     }
 }
 
@@ -106,7 +106,6 @@ impl CmRow {
 //     }
 // }
 
-
 fn next_power_of_two(x: u64) -> u64 {
     let mut x = x - 1;
     x |= x.wrapping_shr(1);
@@ -116,7 +115,6 @@ fn next_power_of_two(x: u64) -> u64 {
     x |= x.wrapping_shr(32);
     x + 1
 }
-
 
 #[cfg(test)]
 mod tests {

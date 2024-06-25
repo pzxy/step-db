@@ -46,7 +46,6 @@ fn size_varint(x: u64) -> usize {
     n
 }
 
-
 fn decode_uvarint(buf: &[u8]) -> (u64, isize) {
     let mut x: u64 = 0;
     let mut s: u32 = 0;
@@ -78,7 +77,6 @@ fn encode_uvarint(buf: &mut [u8], x: u64) -> isize {
     (i + 1) as isize
 }
 
-
 #[cfg(test)]
 mod tests {
     use crate::cache::entry::Value;
@@ -88,10 +86,20 @@ mod tests {
 
     #[test]
     fn test_value() {
-        let v = Value { meta: 2, v: "1".to_string().into_bytes(), expires_at: 123456, version: 1 };
+        let v = Value {
+            meta: 2,
+            v: "1".to_string().into_bytes(),
+            expires_at: 123456,
+            version: 1,
+        };
         let mut data = vec![0; 100];
         let end = v.encode_value(&mut data) as usize;
-        let mut vv = Value { meta: 2, v: vec![], expires_at: 123456, version: 1 };
+        let mut vv = Value {
+            meta: 2,
+            v: vec![],
+            expires_at: 123456,
+            version: 1,
+        };
         vv.decode_value(&data[0..end]);
         assert_eq!(v.v, vv.v);
     }
@@ -108,7 +116,6 @@ pub struct Entry {
     pub header_len: isize,
     pub val_threshold: i64,
 }
-
 
 pub fn new_entry(key: &[u8], value: &[u8]) -> Entry {
     Entry {

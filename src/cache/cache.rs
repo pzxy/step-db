@@ -1,3 +1,7 @@
+use crate::cache::bloom::BloomFilter;
+use crate::cache::counter::CMSketch;
+use crate::cache::lru::{new_lru, new_slru, Item, Map, SegmentedLRU, StoreItem, WindowLRU};
+use crate::cache::{bloom, counter};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::hash::{DefaultHasher, Hash, Hasher};
@@ -6,10 +10,6 @@ use std::ops::Deref;
 use std::ptr::replace;
 use std::rc::Rc;
 use std::sync::RwLock;
-use crate::cache::bloom::BloomFilter;
-use crate::cache::{bloom, counter};
-use crate::cache::counter::CMSketch;
-use crate::cache::lru::{Item, Map, new_lru, new_slru, SegmentedLRU, StoreItem, WindowLRU};
 
 #[derive(Debug)]
 pub struct Cache<K, V> {
@@ -24,13 +24,12 @@ pub struct Cache<K, V> {
     _pd: PhantomData<K>,
 }
 
-
 // size is the number of data to be cached
 
-
 impl<K, V> Cache<K, V>
-    where K: Hash + Eq,
-          V: Clone,
+where
+    K: Hash + Eq,
+    V: Clone,
 {
     pub fn new(size: usize) -> Self {
         // LRU window size，1% of Total
@@ -98,8 +97,8 @@ impl<K, V> Cache<K, V>
     }
 
     fn key_to_hash(&self, k: &K) -> (u64, u64)
-        where
-            K: Hash
+    where
+        K: Hash,
     {
         let mut hasher = DefaultHasher::new();
         k.hash(&mut hasher);
@@ -163,7 +162,7 @@ impl<K, V> Cache<K, V>
 
 #[cfg(test)]
 mod tests {
-    use crate::cache::cache::{Cache};
+    use crate::cache::cache::Cache;
 
     #[test]
     fn test_key_to_hash() {

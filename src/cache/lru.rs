@@ -14,7 +14,7 @@ pub struct WindowLRU<T> {
     list: LinkedList<Item<T>>,
 }
 
-#[derive(Copy, Clone,Debug)]
+#[derive(Copy, Clone, Debug)]
 pub struct StoreItem<T> {
     pub stage: u8,
     pub key: u64,
@@ -37,7 +37,9 @@ impl<T> WindowLRU<T> {
         // If the window's capacity is not full, directly insert the new item
         if self.list.len() < self.cap {
             self.list.push_front(Rc::clone(&item));
-            self.data.borrow_mut().insert(item.borrow().key, Rc::clone(&item));
+            self.data
+                .borrow_mut()
+                .insert(item.borrow().key, Rc::clone(&item));
             return (None);
         }
 
@@ -46,7 +48,9 @@ impl<T> WindowLRU<T> {
         self.data.borrow_mut().remove(&evict_item.borrow().key);
 
         self.list.push_front(Rc::clone(&item));
-        self.data.borrow_mut().insert(item.borrow().key, Rc::clone(&item));
+        self.data
+            .borrow_mut()
+            .insert(item.borrow().key, Rc::clone(&item));
         Some(evict_item)
     }
 
@@ -94,9 +98,13 @@ impl<T> SegmentedLRU<T> {
         item.borrow_mut().stage = 1;
         let item = Rc::new(item);
         // If stage one is not full and the overall capacity is not reached, we're done
-        if self.stage_one.len() < self.stage_one_cap || self.len() < self.stage_one_cap + self.stage_two_cap {
+        if self.stage_one.len() < self.stage_one_cap
+            || self.len() < self.stage_one_cap + self.stage_two_cap
+        {
             self.stage_one.push_front(Rc::clone(&item));
-            self.data.borrow_mut().insert(item.borrow().key, Rc::clone(&item));
+            self.data
+                .borrow_mut()
+                .insert(item.borrow().key, Rc::clone(&item));
             return;
         }
 
@@ -105,7 +113,9 @@ impl<T> SegmentedLRU<T> {
         self.data.borrow_mut().remove(&evicted.borrow().key);
 
         self.stage_one.push_front(Rc::clone(&item));
-        self.data.borrow_mut().insert(item.borrow().key, Rc::clone(&item));
+        self.data
+            .borrow_mut()
+            .insert(item.borrow().key, Rc::clone(&item));
     }
 
     pub fn get(&mut self, new_item: Item<T>) {
@@ -127,7 +137,9 @@ impl<T> SegmentedLRU<T> {
 
             new_item.borrow_mut().stage = STAGE_TWO;
             self.stage_two.push_front(Rc::clone(&new_item));
-            self.data.borrow_mut().insert(new_item.borrow().key, Rc::clone(&new_item));
+            self.data
+                .borrow_mut()
+                .insert(new_item.borrow().key, Rc::clone(&new_item));
 
             old.borrow_mut().stage = STAGE_ONE;
             if self.stage_one.len() >= self.stage_one_cap {
@@ -135,7 +147,9 @@ impl<T> SegmentedLRU<T> {
                 self.data.borrow_mut().remove(&evicted.borrow().key);
             }
             self.stage_one.push_front(Rc::clone(&old));
-            self.data.borrow_mut().insert(old.borrow().key, Rc::clone(&old));
+            self.data
+                .borrow_mut()
+                .insert(old.borrow().key, Rc::clone(&old));
         }
     }
     fn remove_item_in_stage_one(&mut self, key: u64) -> Option<Item<T>> {
@@ -169,14 +183,12 @@ impl<T> SegmentedLRU<T> {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
+    use crate::cache::lru::{new_lru, StoreItem};
     use std::cell::RefCell;
     use std::collections::HashMap;
     use std::rc::Rc;
-    use crate::cache::lru::{new_lru, StoreItem};
-
 
     struct User {
         name: String,
@@ -191,9 +203,7 @@ mod tests {
             stage: 0,
             key: 0,
             conflict: 0,
-            value: User {
-                name: name.clone(),
-            },
+            value: User { name: name.clone() },
         };
         if let Some(ret) = a.add(v) {
             assert_eq!(name, ret.borrow().value.name)

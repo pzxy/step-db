@@ -1,13 +1,13 @@
-use std::ops::{Deref};
-use std::rc::Rc;
-use std::sync::atomic::{AtomicI32, AtomicU32, AtomicU64};
-use std::sync::atomic::Ordering::{Acquire, Relaxed};
-use rand::{random};
-use crate::cache::area::{Area};
+use crate::cache::area::Area;
 use crate::cache::entry::{Entry, Value};
 use crate::cache::iterator;
 use crate::cache::iterator::SkipListIter;
 use crate::cache::utils::compare_keys;
+use rand::random;
+use std::ops::Deref;
+use std::rc::Rc;
+use std::sync::atomic::Ordering::{Acquire, Relaxed};
+use std::sync::atomic::{AtomicI32, AtomicU32, AtomicU64};
 
 pub const MAX_HEIGHT: usize = 20;
 
@@ -51,11 +51,10 @@ fn new_node<'a>(area: &'a Area, key: Vec<u8>, v: &'a Value, height: usize) -> Rc
     node
 }
 
-
 pub struct SkipList {
     pub height: AtomicI32,
     pub head_offset: u32,
-    pub area: Rc::<Area>,
+    pub area: Rc<Area>,
 }
 
 fn new_skip_list(area_size: u32) -> Box<SkipList> {
@@ -91,7 +90,8 @@ impl SkipList {
 
         for i in (0..list_height).rev() {
             // Use higher level to speed up for current level.
-            (prev[i as usize], next[i as usize]) = self.find_splice_for_level(&key, prev[(i + 1) as usize], i);
+            (prev[i as usize], next[i as usize]) =
+                self.find_splice_for_level(&key, prev[(i + 1) as usize], i);
             if prev[i as usize] == next[i as usize] {
                 let vo = area_tmp.put_value(&v);
                 let enc_value = encode_value(vo, v.encoded_size() as u32);
@@ -105,7 +105,11 @@ impl SkipList {
 
         let mut list_height = self.get_height();
         while height > list_height as usize {
-            if self.height.compare_exchange(list_height, height as i32, Acquire, Relaxed).is_ok() {
+            if self
+                .height
+                .compare_exchange(list_height, height as i32, Acquire, Relaxed)
+                .is_ok()
+            {
                 // Successfully increased skiplist.height.
                 break;
             }
@@ -115,9 +119,10 @@ impl SkipList {
             loop {
                 if area_tmp.get_node(prev[i]).is_none() {
                     assert!(i > 1); // This cannot happen in base level.
-                    // We haven't computed prev, next for this level because height exceeds old listHeight.
-                    // For these levels, we expect the lists to be sparse, so we can just search from head.
-                    (prev[i], next[i]) = self.find_splice_for_level(&key, self.head_offset, i as i32);
+                                    // We haven't computed prev, next for this level because height exceeds old listHeight.
+                                    // For these levels, we expect the lists to be sparse, so we can just search from head.
+                    (prev[i], next[i]) =
+                        self.find_splice_for_level(&key, self.head_offset, i as i32);
                     // Someone adds the exact same key before we are able to do so. This can only happen on
                     // the base level. But we know we are not on the base level.
                     assert_ne!(prev[i], next[i]);
@@ -127,7 +132,10 @@ impl SkipList {
                     x_m.tower[i] = AtomicU32::from(next[i]);
                 }
                 if let Some(pnode) = area_tmp.get_node(prev[i]) {
-                    if pnode.tower[i].compare_exchange(next[i], area_tmp.get_node_offset(&x), Acquire, Relaxed).is_ok() {
+                    if pnode.tower[i]
+                        .compare_exchange(next[i], area_tmp.get_node_offset(&x), Acquire, Relaxed)
+                        .is_ok()
+                    {
                         // Managed to insert x between prev[i] and next[i]. Go to the next level.
                         break;
                     }
@@ -181,9 +189,13 @@ impl SkipList {
     }
 }
 
-
 impl SkipList {
-    pub fn find_near(&self, key: &[u8], less: bool, allow_equal: bool) -> (Option<Rc<&Node>>, bool) {
+    pub fn find_near(
+        &self,
+        key: &[u8],
+        less: bool,
+        allow_equal: bool,
+    ) -> (Option<Rc<&Node>>, bool) {
         let mut x = self.get_head().unwrap();
         let mut level = (self.get_height() - 1) as i32;
         let area_tmp = Rc::clone(&self.area);
@@ -295,7 +307,6 @@ impl SkipList {
     }
 }
 
-
 fn encode_value(val_offset: u32, val_size: u32) -> u64 {
     (u64::from(val_size) << 32) | u64::from(val_offset)
 }
@@ -350,9 +361,9 @@ fn random_height() -> usize {
 
 #[cfg(test)]
 mod tests {
-    use rand::Rng;
-    use crate::cache::entry::{new_entry};
+    use crate::cache::entry::new_entry;
     use crate::cache::skiplist::new_skip_list;
+    use rand::Rng;
 
     fn gen_key(len: usize) -> String {
         let mut rng = rand::thread_rng();
@@ -409,7 +420,7 @@ mod tests {
                 1 => assert_eq!(k1, String::from_utf8(e.key).unwrap()),
                 2 => assert_eq!(k2, String::from_utf8(e.key).unwrap()),
                 3 => assert_eq!(v3, String::from_utf8(e.value).unwrap()),
-                x => assert_eq!(x, 0)
+                x => assert_eq!(x, 0),
             }
         }
     }

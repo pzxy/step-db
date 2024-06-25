@@ -1,10 +1,10 @@
-use std::cell::{RefCell};
+use crate::cache::entry::Value;
+use crate::cache::skiplist::{Node, MAX_HEIGHT};
+use std::cell::RefCell;
 use std::mem;
 use std::rc::Rc;
-use std::sync::atomic::{AtomicU32};
-use std::sync::atomic::Ordering::{Relaxed};
-use crate::cache::entry::Value;
-use crate::cache::skiplist::{MAX_HEIGHT, Node};
+use std::sync::atomic::AtomicU32;
+use std::sync::atomic::Ordering::Relaxed;
 
 const OFFSET_SIZE: usize = std::mem::size_of::<u32>();
 const NODE_ALIGN: usize = std::mem::size_of::<u64>() - 1;
@@ -82,9 +82,7 @@ impl Area {
         if offset == 0 {
             return None;
         }
-        let x = unsafe {
-            mem::transmute::<&u8, &Node>(&self.get_buf()[offset as usize])
-        };
+        let x = unsafe { mem::transmute::<&u8, &Node>(&self.get_buf()[offset as usize]) };
         println!("get_node node:{:?}", x);
         return Some(Rc::new(x));
     }
@@ -105,9 +103,7 @@ impl Area {
     pub fn get_node_offset(&self, nd: &Node) -> u32 {
         let node_ptr = nd as *const Node as *const u8;
         let arena_start = self.get_buf().as_ptr();
-        unsafe {
-            node_ptr.offset_from(arena_start) as u32
-        }
+        unsafe { node_ptr.offset_from(arena_start) as u32 }
     }
 }
 
@@ -144,4 +140,3 @@ mod tests {
         assert_eq!(v.v, value_target.v);
     }
 }
-

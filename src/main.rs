@@ -1,5 +1,3 @@
 mod cache;
 
-fn main() {
-
-}
+fn main() {}

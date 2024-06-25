@@ -1,12 +1,12 @@
-use std::marker::PhantomData;
-use std::rc::Rc;
 use crate::cache::entry::Entry;
 use crate::cache::skiplist::{Node, SkipList};
+use std::marker::PhantomData;
+use std::rc::Rc;
 
 pub struct SkipListIter<'a> {
     l: &'a SkipList,
     n: Option<Rc<&'a Node>>,
-    i: bool,// i == true, indicates not the first run
+    i: bool, // i == true, indicates not the first run
 }
 
 pub fn new(l: &SkipList) -> SkipListIter {
@@ -27,7 +27,7 @@ impl Iterator for SkipListIter<'_> {
             return self.item();
         }
         return match &self.n {
-            None => { None }
+            None => None,
             Some(x) => {
                 if let Some(next_n) = self.l.get_next(&x, 0) {
                     self.n = Some(next_n);
@@ -41,18 +41,17 @@ impl Iterator for SkipListIter<'_> {
     }
 }
 
-
 impl SkipListIter<'_> {
     fn valid(&self) -> bool {
         return match self.n {
-            None => { false }
-            Some(_) => { true }
+            None => false,
+            Some(_) => true,
         };
     }
 
     fn item(&self) -> Option<Entry> {
         return match &self.n {
-            None => { None }
+            None => None,
             Some(n) => {
                 let k = self.l.area.get_key(n.key_offset, n.key_size);
                 let v = self.l.get_value(n);
@@ -68,4 +67,3 @@ impl SkipListIter<'_> {
         };
     }
 }
-

@@ -1,5 +1,5 @@
 use std::cmp::{max, min};
-use std::f64::consts::{LN_2};
+use std::f64::consts::LN_2;
 
 #[derive(Debug)]
 pub struct BloomFilter {
@@ -40,10 +40,11 @@ pub fn init_filter(num_entries: isize, false_positive: f64) -> BloomFilter {
     bf
 }
 
-
 impl BloomFilter {
     fn insert(&mut self, h: u32) -> bool {
-        if self.k > 30 { return true; }
+        if self.k > 30 {
+            return true;
+        }
         let bits = 8 * (self.bitmap.len() - 1) as u32;
         let delta = (h >> 17) | (h << 15);
         let mut h = h;
@@ -59,14 +60,18 @@ impl BloomFilter {
     }
 
     fn may_exist(&self, h: u32) -> bool {
-        if self.bitmap.len() < 2 { return false; }
+        if self.bitmap.len() < 2 {
+            return false;
+        }
         let bits = 8 * (self.bitmap.len() - 1) as u32;
         let delta = (h >> 17) | (h << 15);
         let mut h = h;
         for _ in 0..self.k {
             let bit_pos = h % bits;
             // println!("bit_pos:{}", bit_pos);
-            if self.bitmap[(bit_pos / 8) as usize] as u32 & (1u32.wrapping_shl(bit_pos % 8)) == 0 { return false; }
+            if self.bitmap[(bit_pos / 8) as usize] as u32 & (1u32.wrapping_shl(bit_pos % 8)) == 0 {
+                return false;
+            }
             h = h.wrapping_add(delta)
         }
         return true;
@@ -94,7 +99,7 @@ fn hash(bytes: &[u8]) -> u32 {
 
 #[cfg(test)]
 mod tests {
-    use crate::cache::bloom::{new};
+    use crate::cache::bloom::new;
 
     #[test]
     fn test_bloom() {
