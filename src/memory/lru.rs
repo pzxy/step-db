@@ -184,7 +184,7 @@ impl<T> SegmentedLRU<T> {
 
 #[cfg(test)]
 mod tests {
-    use crate::cache::lru::{new_lru, StoreItem};
+    use crate::memory::lru::{new_lru, StoreItem};
     use std::cell::RefCell;
     use std::collections::HashMap;
     use std::rc::Rc;

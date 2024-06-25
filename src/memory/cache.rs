@@ -1,7 +1,7 @@
-use crate::cache::bloom::BloomFilter;
-use crate::cache::counter::CMSketch;
-use crate::cache::lru::{new_lru, new_slru, Map, SegmentedLRU, StoreItem, WindowLRU};
-use crate::cache::{bloom, counter};
+use crate::memory::bloom::BloomFilter;
+use crate::memory::counter::CMSketch;
+use crate::memory::lru::{new_lru, new_slru, Map, SegmentedLRU, StoreItem, WindowLRU};
+use crate::memory::{bloom, counter};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::hash::{DefaultHasher, Hash, Hasher};
@@ -59,7 +59,7 @@ where
         // keyHash is used for quick lookup, conflictHash is used to check for conflicts
         let (key_hash, conflict_hash) = self.key_to_hash(&key);
 
-        // The newly added cache items are first placed in the window LRU, so stage = 0
+        // The newly added memory items are first placed in the window LRU, so stage = 0
         let item = StoreItem {
             stage: 0,
             key: key_hash,
@@ -160,7 +160,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::cache::cache::Cache;
+    use crate::memory::cache::Cache;
 
     #[test]
     fn test_key_to_hash() {

@@ -1,8 +1,8 @@
-use crate::cache::area::Area;
-use crate::cache::entry::{Entry, Value};
-use crate::cache::iterator;
-use crate::cache::iterator::SkipListIter;
-use crate::cache::utils::compare_keys;
+use crate::memory::area::Area;
+use crate::memory::entry::{Entry, Value};
+use crate::memory::iterator;
+use crate::memory::iterator::SkipListIter;
+use crate::memory::utils::compare_keys;
 use rand::random;
 use std::ops::Deref;
 use std::rc::Rc;
@@ -283,8 +283,8 @@ impl SkipList {
 }
 
 impl SkipList {
-    pub fn get_next(&self, nd: &Node, height: i32) -> Option<Rc<&Node>> {
-        let offset = nd.get_next_offset(height);
+    pub fn get_next(&self, node: &Node, height: i32) -> Option<Rc<&Node>> {
+        let offset = node.get_next_offset(height);
         println!("next offset:{},height:{}", offset, height);
         self.area.get_node(offset)
     }
@@ -360,8 +360,8 @@ fn random_height() -> usize {
 
 #[cfg(test)]
 mod tests {
-    use crate::cache::entry::new_entry;
-    use crate::cache::skiplist::new_skip_list;
+    use crate::memory::entry::new_entry;
+    use crate::memory::skiplist::new_skip_list;
     use rand::Rng;
 
     fn gen_key(len: usize) -> String {

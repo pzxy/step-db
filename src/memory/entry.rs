@@ -79,7 +79,7 @@ fn encode_uvarint(buf: &mut [u8], x: u64) -> isize {
 
 #[cfg(test)]
 mod tests {
-    use crate::cache::entry::Value;
+    use crate::memory::entry::Value;
 
     #[test]
     fn test_uvarint() {}

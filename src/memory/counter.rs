@@ -116,7 +116,7 @@ fn next_power_of_two(x: u64) -> u64 {
 
 #[cfg(test)]
 mod tests {
-    use crate::cache::counter;
+    use crate::memory::counter;
 
     #[test]
     fn test_counter() {

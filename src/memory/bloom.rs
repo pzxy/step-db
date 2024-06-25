@@ -99,7 +99,7 @@ fn hash(bytes: &[u8]) -> u32 {
 
 #[cfg(test)]
 mod tests {
-    use crate::cache::bloom::new;
+    use crate::memory::bloom::new;
 
     #[test]
     fn test_bloom() {

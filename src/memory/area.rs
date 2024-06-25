@@ -1,5 +1,5 @@
-use crate::cache::entry::Value;
-use crate::cache::skiplist::{Node, MAX_HEIGHT};
+use crate::memory::entry::Value;
+use crate::memory::skiplist::{Node, MAX_HEIGHT};
 use std::cell::RefCell;
 use std::mem;
 use std::rc::Rc;
@@ -100,8 +100,8 @@ impl Area {
         ret
     }
 
-    pub fn get_node_offset(&self, nd: &Node) -> u32 {
-        let node_ptr = nd as *const Node as *const u8;
+    pub fn get_node_offset(&self, node: &Node) -> u32 {
+        let node_ptr = node as *const Node as *const u8;
         let arena_start = self.get_buf().as_ptr();
         unsafe { node_ptr.offset_from(arena_start) as u32 }
     }
@@ -109,8 +109,8 @@ impl Area {
 
 #[cfg(test)]
 mod tests {
-    use crate::cache::area::Area;
-    use crate::cache::entry::Value;
+    use crate::memory::area::Area;
+    use crate::memory::entry::Value;
 
     #[test]
     fn test_area() {

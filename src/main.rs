@@ -1,3 +1,3 @@
-mod cache;
+mod memory;
 
 fn main() {}

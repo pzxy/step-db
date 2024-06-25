@@ -1,5 +1,5 @@
-use crate::cache::entry::Entry;
-use crate::cache::skiplist::{Node, SkipList};
+use crate::memory::entry::Entry;
+use crate::memory::skiplist::{Node, SkipList};
 use std::rc::Rc;
 
 pub struct SkipListIter<'a> {
