@@ -58,8 +58,6 @@ impl CMSketch {
     }
 }
 
-use std::fmt;
-
 #[derive(Debug)]
 pub struct CmRow {
     data: Vec<u8>,

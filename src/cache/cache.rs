@@ -1,13 +1,11 @@
 use crate::cache::bloom::BloomFilter;
 use crate::cache::counter::CMSketch;
-use crate::cache::lru::{new_lru, new_slru, Item, Map, SegmentedLRU, StoreItem, WindowLRU};
+use crate::cache::lru::{new_lru, new_slru, Map, SegmentedLRU, StoreItem, WindowLRU};
 use crate::cache::{bloom, counter};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::marker::PhantomData;
-use std::ops::Deref;
-use std::ptr::replace;
 use std::rc::Rc;
 use std::sync::RwLock;
 
@@ -110,7 +108,7 @@ where
         (h1, h2)
     }
 
-    fn get(&mut self, key: &K) -> (Option<V>) {
+    fn get(&mut self, key: &K) -> Option<V> {
         let _unused = self.m.write().expect("get k-v pairs fail");
 
         self.t += 1;

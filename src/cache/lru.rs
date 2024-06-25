@@ -1,7 +1,6 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::collections::LinkedList;
-use std::ops::Deref;
 use std::rc::Rc;
 
 pub type Item<T> = Rc<RefCell<StoreItem<T>>>;
@@ -31,7 +30,7 @@ pub fn new_lru<T>(size: usize, data: Map<T>) -> WindowLRU<T> {
 }
 
 impl<T> WindowLRU<T> {
-    pub fn add(&mut self, new_item: StoreItem<T>) -> (Option<Rc<RefCell<StoreItem<T>>>>) {
+    pub fn add(&mut self, new_item: StoreItem<T>) -> Option<Rc<RefCell<StoreItem<T>>>> {
         let item = Rc::new(RefCell::new(new_item));
 
         // If the window's capacity is not full, directly insert the new item
@@ -40,7 +39,7 @@ impl<T> WindowLRU<T> {
             self.data
                 .borrow_mut()
                 .insert(item.borrow().key, Rc::clone(&item));
-            return (None);
+            return None;
         }
 
         // If the window's capacity is full, evict the item from the tail according to the LRU rule
@@ -93,7 +92,7 @@ pub fn new_slru<T>(stage_one_cap: usize, stage_two_cap: usize, data: Map<T>) -> 
 }
 
 impl<T> SegmentedLRU<T> {
-    pub fn add(&mut self, mut item: Item<T>) {
+    pub fn add(&mut self, item: Item<T>) {
         // New items always start in stage one
         item.borrow_mut().stage = 1;
         let item = Rc::new(item);
@@ -172,7 +171,7 @@ impl<T> SegmentedLRU<T> {
         self.stage_one.back()
     }
 
-    fn key_of(&self, item: &T) -> u64 {
+    fn key_of(&self, _item: &T) -> u64 {
         // Implement your own key generation logic here
         0
     }

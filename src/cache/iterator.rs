@@ -1,6 +1,5 @@
 use crate::cache::entry::Entry;
 use crate::cache::skiplist::{Node, SkipList};
-use std::marker::PhantomData;
 use std::rc::Rc;
 
 pub struct SkipListIter<'a> {
@@ -29,7 +28,7 @@ impl Iterator for SkipListIter<'_> {
         return match &self.n {
             None => None,
             Some(x) => {
-                if let Some(next_n) = self.l.get_next(&x, 0) {
+                if let Some(next_n) = self.l.get_next(x, 0) {
                     self.n = Some(next_n);
                     self.item()
                 } else {
@@ -43,27 +42,24 @@ impl Iterator for SkipListIter<'_> {
 
 impl SkipListIter<'_> {
     fn valid(&self) -> bool {
-        return match self.n {
-            None => false,
-            Some(_) => true,
-        };
+        self.n.is_some()
     }
 
     fn item(&self) -> Option<Entry> {
-        return match &self.n {
+        match &self.n {
             None => None,
             Some(n) => {
                 let k = self.l.area.get_key(n.key_offset, n.key_size);
                 let v = self.l.get_value(n);
-                return Option::from(Entry {
+                Option::from(Entry {
                     key: k,
                     value: v.v,
                     expires_at: v.expires_at,
                     meta: v.meta,
                     version: v.version,
                     ..Default::default()
-                });
+                })
             }
-        };
+        }
     }
 }

@@ -29,7 +29,7 @@ impl Value {
         let start = 1 + sz as usize;
         let end = start + self.v.len();
         b[start..end].copy_from_slice(&self.v);
-        return end as u32;
+        end as u32
     }
 }
 

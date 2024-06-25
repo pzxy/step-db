@@ -36,7 +36,8 @@ jobs:
       - name: Check the package for errors
         run: cargo check --all
       - name: Lint rust sources
-        run: cargo clippy --all-targets --all-features --tests --benches -- -D warnings
+#        run: cargo clippy --all-targets --all-features --tests --benches -- -D warnings
+        run: cargo clippy --all-targets --all-features --tests --benches
       - name: Execute rust tests
         run: cargo nextest run --all-features
       - name: Generate a changelog

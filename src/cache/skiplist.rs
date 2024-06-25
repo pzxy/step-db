@@ -27,7 +27,7 @@ impl Node {
     }
     pub fn get_value_offset(&self) -> (u32, u32) {
         let i = self.value.load(Relaxed);
-        return decode_value(i);
+        decode_value(i)
     }
     pub fn set_value(&self, vo: u64) {
         self.value.store(vo, Relaxed);
@@ -37,7 +37,7 @@ impl Node {
 fn new_node<'a>(area: &'a Area, key: Vec<u8>, v: &'a Value, height: usize) -> Rc<&'a mut Node> {
     let node_offset = area.put_node(height);
     let key_offset = area.put_key(key.clone());
-    let val = encode_value(area.put_value(&v), v.encoded_size() as u32);
+    let val = encode_value(area.put_value(v), v.encoded_size() as u32);
     let mut node = area.get_node_mut(node_offset).unwrap();
     {
         let n = Rc::get_mut(&mut node).unwrap();
@@ -70,7 +70,7 @@ fn new_skip_list(area_size: u32) -> Box<SkipList> {
 
         ret.head_offset = ret.area.deref().get_node_offset(Rc::clone(&head).as_ref());
     }
-    return ret;
+    ret
 }
 
 impl SkipList {
@@ -278,8 +278,7 @@ impl SkipList {
         }
 
         let (val_offset, val_size) = n.get_value_offset();
-        let vs = area_tmp.get_value(val_offset, val_size);
-        vs
+        area_tmp.get_value(val_offset, val_size)
     }
 }
 
@@ -300,7 +299,7 @@ impl SkipList {
 
     pub fn get_value(&self, n: &Node) -> Value {
         let (val_offset, val_size) = n.get_value_offset();
-        return self.area.get_value(val_offset, val_size);
+        self.area.get_value(val_offset, val_size)
     }
     pub fn iter(&self) -> SkipListIter {
         return iterator::new(self);
@@ -368,9 +367,9 @@ mod tests {
     fn gen_key(len: usize) -> String {
         let mut rng = rand::thread_rng();
         let mut bytes = vec![0; len];
-        for i in 0..len {
+        for item in bytes.iter_mut().take(len) {
             let b = rng.gen_range(97..123) as u8;
-            bytes[i] = b;
+            *item = b;
         }
         String::from_utf8(bytes).unwrap()
     }

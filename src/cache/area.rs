@@ -39,17 +39,17 @@ impl Area {
             return offset;
         }
         // TODO： increase the capacity of buf
-        return offset;
+        offset
     }
     fn size(&self) -> i64 {
-        return self.n.load(Relaxed) as i64;
+        self.n.load(Relaxed) as i64
     }
 
     pub(crate) fn put_node(&self, height: usize) -> u32 {
         let unused = (MAX_HEIGHT - height) * OFFSET_SIZE;
         let sz = (MAX_NODE_SIZE - unused + NODE_ALIGN) as u32;
         let offset = self.allocate(sz);
-        return (offset + NODE_ALIGN as u32) & !(NODE_ALIGN as u32);
+        (offset + NODE_ALIGN as u32) & !(NODE_ALIGN as u32)
     }
 
     pub(crate) fn put_key(&self, key: Vec<u8>) -> u32 {
@@ -57,14 +57,14 @@ impl Area {
         let offset = self.allocate(key_sz);
         let end = (offset + key_sz) as usize;
         self.get_buf_mut()[offset as usize..end].copy_from_slice(&key);
-        return offset;
+        offset
     }
 
     pub(crate) fn put_value(&self, value: &Value) -> u32 {
         let encode_sz = value.encoded_size();
         let offset = self.allocate(encode_sz as u32) as usize;
         value.encode_value(&mut self.get_buf_mut()[offset..]);
-        return offset as u32;
+        offset as u32
     }
 
     pub(crate) fn get_node_mut(&self, offset: u32) -> Option<Rc<&mut Node>> {
@@ -75,7 +75,7 @@ impl Area {
             mem::transmute::<&mut u8, &mut Node>(&mut self.get_buf_mut()[offset as usize])
         };
 
-        return Some(Rc::new(x));
+        Some(Rc::new(x))
     }
 
     pub(crate) fn get_node(&self, offset: u32) -> Option<Rc<&Node>> {
@@ -84,20 +84,20 @@ impl Area {
         }
         let x = unsafe { mem::transmute::<&u8, &Node>(&self.get_buf()[offset as usize]) };
         println!("get_node node:{:?}", x);
-        return Some(Rc::new(x));
+        Some(Rc::new(x))
     }
 
     pub(crate) fn get_key(&self, offset: u32, sz: u16) -> Vec<u8> {
         let offset = offset as usize;
         let end = offset + sz as usize;
         println!("offset:{},end:{}", offset, end);
-        return self.get_buf()[offset..end].to_vec();
+        self.get_buf()[offset..end].to_vec()
     }
     pub fn get_value(&self, offset: u32, sz: u32) -> Value {
         let end = (offset + sz) as usize;
         let mut ret = Value::default();
         ret.decode_value(&self.get_buf()[offset as usize..end]);
-        return ret;
+        ret
     }
 
     pub fn get_node_offset(&self, nd: &Node) -> u32 {

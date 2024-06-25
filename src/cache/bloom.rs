@@ -8,7 +8,7 @@ pub struct BloomFilter {
 }
 
 pub fn new(num_entries: isize, false_positive: f64) -> BloomFilter {
-    return init_filter(num_entries, false_positive);
+    init_filter(num_entries, false_positive)
 }
 
 // m = -n(lnP)/(ln2)^2
@@ -56,7 +56,7 @@ impl BloomFilter {
         true
     }
     fn may_exist_key(&self, k: &[u8]) -> bool {
-        return self.may_exist(hash(k));
+        self.may_exist(hash(k))
     }
 
     fn may_exist(&self, h: u32) -> bool {
@@ -74,17 +74,17 @@ impl BloomFilter {
             }
             h = h.wrapping_add(delta)
         }
-        return true;
+        true
     }
     fn allow_key(&mut self, k: &[u8]) -> bool {
-        return self.allow(hash(k));
+        self.allow(hash(k))
     }
     pub(crate) fn allow(&mut self, h: u32) -> bool {
         let already = self.may_exist(h);
         if !already {
             return self.insert(h);
         }
-        return already;
+        already
     }
     pub fn reset(&mut self) {
         for v in self.bitmap.iter_mut() {
@@ -113,8 +113,8 @@ mod tests {
         let exist1 = bf.may_exist_key(k1);
         let exist2 = bf.may_exist_key(k2);
         let exist3 = bf.may_exist_key(k3);
-        assert_eq!(exist1, true);
-        assert_eq!(exist2, true);
-        assert_eq!(exist3, false);
+        assert!(exist1);
+        assert!(exist2);
+        assert!(!exist3);
     }
 }
