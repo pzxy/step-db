@@ -6,10 +6,11 @@
   - [x] bloom filter
   - [x] LRU & FRU
   - [x] Skip list
-  - [x] Create continuous heap memory to cache data
+  - [x] Cached on the heap
 - [ ] Disk
   - [ ] MMap
   - [ ] LSM
+  - [ ] SStable
   - [ ] MANIFEST
   - [ ] Recovery
 - [ ] Transaction

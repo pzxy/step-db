@@ -1,1 +1,2 @@
+mod disk;
 mod memory;

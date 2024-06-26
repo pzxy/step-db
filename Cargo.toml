@@ -15,6 +15,7 @@ murmurhash32 = "0.3.1"
 indexmap = "2.2.6"
 memmap2 = "0.9.4"
 anyhow = "1.0.86"
+libc = "0.2.155"
 
 [dependencies.xxhash-rust]
 version = "0.8.5"
